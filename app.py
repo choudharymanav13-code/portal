@@ -79,7 +79,7 @@ if st.session_state.show_goodbye:
     st.rerun()
 
 if not st.session_state.logged_in:
-    st.title("💌 Cute Grievance Portal")
+    st.title("💌 Grievance Portal")
 
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
