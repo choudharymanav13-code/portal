@@ -1,0 +1,6 @@
+[theme]
+primaryColor = "#ff85a2"         # pastel pink
+backgroundColor = "#fff5f9"      # soft white-pink
+secondaryBackgroundColor = "#ffe6ef"
+textColor = "#4a4a4a"
+font = "sans serif"
