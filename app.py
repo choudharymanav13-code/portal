@@ -105,7 +105,7 @@ if not st.session_state.logged_in:
     if username in users and password == users[username]:
         st.session_state.logged_in = True
         st.session_state.username = username
-        st.experimental_rerun()
+        st.rerun()
     elif username or password:
         st.error("Wrong credentials 😢")
 
@@ -115,7 +115,7 @@ else:
     if st.button("Logout"):
         st.session_state.logged_in = False
         st.session_state.username = None
-        st.experimental_rerun()
+        st.rerun()
 
     # Auto-refresh just chat areas
     st_autorefresh(interval=5000, key="refresh")
@@ -169,14 +169,14 @@ else:
                           (gid, username, reply, now))
                 conn.commit()
                 st.success("Reply sent 💌")
-                st.experimental_rerun()
+                st.rerun()
 
             if st.button(f"Mark Resolved {gid}"):
                 c.execute("UPDATE grievances SET status='Resolved' WHERE id=?", (gid,))
                 conn.commit()
                 st.balloons()
                 st.success("Grievance resolved ❤️")
-                st.experimental_rerun()
+                st.rerun()
 
         st.write("---")
 
@@ -199,7 +199,7 @@ else:
                   (username, note, now))
         conn.commit()
         st.success("Note sent 💖")
-        st.experimental_rerun()
+        st.rerun()
 
     notes = c.execute("SELECT sender, text, timestamp FROM love_notes ORDER BY id DESC").fetchall()
     for n in notes:
