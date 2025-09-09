@@ -1,14 +1,13 @@
 import streamlit as st
-import random
+import sqlite3
 import datetime
-import time
+from streamlit_autorefresh import st_autorefresh
 
 # --------------------------
-# CONFIG
+# CONFIG & THEME
 # --------------------------
 st.set_page_config(page_title="💖 Grievance Portal", layout="wide")
 
-# Floating emoji CSS
 st.markdown("""
 <style>
 body {
@@ -48,59 +47,84 @@ body {
 """, unsafe_allow_html=True)
 
 # --------------------------
-# USER DATA
+# DB INIT
 # --------------------------
-if "grievances" not in st.session_state:
-    st.session_state.grievances = []
-if "forgiveness" not in st.session_state:
-    st.session_state.forgiveness = 0
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-if "username" not in st.session_state:
-    st.session_state.username = None
-if "show_goodbye" not in st.session_state:
-    st.session_state.show_goodbye = False
+conn = sqlite3.connect("grievances.db", check_same_thread=False)
+c = conn.cursor()
+
+c.execute("""
+CREATE TABLE IF NOT EXISTS grievances (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_by TEXT,
+    assigned_to TEXT,
+    category TEXT,
+    status TEXT,
+    created_at TEXT
+)
+""")
+
+c.execute("""
+CREATE TABLE IF NOT EXISTS messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    grievance_id INTEGER,
+    sender TEXT,
+    text TEXT,
+    timestamp TEXT
+)
+""")
+
+c.execute("""
+CREATE TABLE IF NOT EXISTS love_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sender TEXT,
+    text TEXT,
+    timestamp TEXT
+)
+""")
+
+conn.commit()
 
 # --------------------------
-# LOGIN SYSTEM
+# LOGIN
 # --------------------------
 users = {
     "vinitheprettiest": "ihatemybf",
     "manav": "boilttle"
 }
 
-# Goodbye screen
-if st.session_state.show_goodbye:
-    st.markdown("<h1 style='text-align:center;'>💖 Goodbye for now 💖</h1>", unsafe_allow_html=True)
-    st.markdown("<h3 style='text-align:center;'>See you soon cutie 🥺💕</h3>", unsafe_allow_html=True)
-    st.balloons()
-    time.sleep(2)  # show for 2 seconds
-    st.session_state.show_goodbye = False
-    st.rerun()
+st.title("💌 Cute Grievance Portal")
+
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.username = None
 
 if not st.session_state.logged_in:
-    st.title("💌 Grievance Portal")
-
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
 
     if username in users and password == users[username]:
         st.session_state.logged_in = True
         st.session_state.username = username
-        st.rerun()
+        st.experimental_rerun()
     elif username or password:
         st.error("Wrong credentials 😢")
 
 else:
     username = st.session_state.username
     st.success(f"Welcome, {username}! 💖")
+    if st.button("Logout"):
+        st.session_state.logged_in = False
+        st.session_state.username = None
+        st.experimental_rerun()
+
+    # Auto-refresh just chat areas
+    st_autorefresh(interval=5000, key="refresh")
 
     # --------------------------
-    # HER VIEW
+    # VINITA VIEW: CREATE GRIEVANCE
     # --------------------------
     if username == "vinitheprettiest":
         st.header("✨ Submit a grievance")
-
         category = st.selectbox("Pick a category 💭", [
             "You forgot something 😒",
             "You annoyed me 🙄",
@@ -108,71 +132,77 @@ else:
             "I just need attention 🥺",
             "Other..."
         ])
-        mood = st.radio("How mad are you? 🤔", ["😇", "😐", "😡", "🤯"])
         text = st.text_area("What happened? 📝")
 
         if st.button("Submit grievance 💌"):
-            grievance = {
-                "user": username,
-                "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
-                "category": category,
-                "mood": mood,
-                "text": text,
-                "reply": None,
-                "resolved": False
-            }
-            st.session_state.grievances.append(grievance)
-            messages = [
-                "Grievance noted 💕 cuddle pending 🤗",
-                "Uh oh! Pizza bribe coming 🍕",
-                "I’ll make it up to you with extra hugs 🫂",
-                "Noted, guilty as charged 😅",
-                "Love you, sorryyy 💖"
-            ]
-            st.success(random.choice(messages))
-
-        st.header("📜 My Grievances History")
-        for g in st.session_state.grievances:
-            if g["user"] == "vinitheprettiest":
-                st.markdown(
-                    f"<div class='chat-container'><div class='chat-bubble user-bubble'>**[{g['time']}] {g['category']} {g['mood']}**<br>{g['text']}</div></div>",
-                    unsafe_allow_html=True
-                )
-                if g["reply"]:
-                    st.markdown(
-                        f"<div class='chat-container'><div class='chat-bubble'>💌 {g['reply']}</div></div>",
-                        unsafe_allow_html=True
-                    )
-                if g["resolved"]:
-                    st.success("✔️ Resolved")
+            now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            c.execute("INSERT INTO grievances (created_by, assigned_to, category, status, created_at) VALUES (?, ?, ?, ?, ?)",
+                      (username, "manav", category, "Pending", now))
+            grievance_id = c.lastrowid
+            c.execute("INSERT INTO messages (grievance_id, sender, text, timestamp) VALUES (?, ?, ?, ?)",
+                      (grievance_id, username, text, now))
+            conn.commit()
+            st.success("Grievance submitted 💕")
 
     # --------------------------
-    # HIS VIEW
+    # GRIEVANCE DASHBOARD (BOTH USERS)
     # --------------------------
-    elif username == "manav":
-        st.header("📋 Grievances Dashboard")
+    st.header("📋 Grievances Dashboard")
 
-        for i, g in enumerate(st.session_state.grievances):
-            st.markdown(f"**[{g['time']}] {g['category']} {g['mood']}**")
-            st.markdown(f"{g['text']}")
-            reply = st.text_input(f"Reply to grievance {i+1}", key=f"reply_{i}")
-            if st.button(f"Send Reply {i+1}"):
-                st.session_state.grievances[i]["reply"] = reply
+    grievances = c.execute("SELECT * FROM grievances ORDER BY id DESC").fetchall()
+
+    for g in grievances:
+        gid, created_by, assigned_to, category, status, created_at = g
+        st.markdown(f"**[{created_at}] {category}** — *{status}*")
+
+        messages = c.execute("SELECT sender, text, timestamp FROM messages WHERE grievance_id=? ORDER BY id ASC", (gid,)).fetchall()
+        for m in messages:
+            sender, text, ts = m
+            bubble_class = "chat-bubble user-bubble" if sender == username else "chat-bubble"
+            st.markdown(f"<div class='chat-container'><div class='{bubble_class}'>**{sender} [{ts}]**<br>{text}</div></div>", unsafe_allow_html=True)
+
+        if status == "Pending":
+            reply = st.text_input(f"Reply to grievance {gid}", key=f"reply_{gid}")
+            if st.button(f"Send Reply {gid}"):
+                now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+                c.execute("INSERT INTO messages (grievance_id, sender, text, timestamp) VALUES (?, ?, ?, ?)",
+                          (gid, username, reply, now))
+                conn.commit()
                 st.success("Reply sent 💌")
-            if not g["resolved"] and st.button(f"Mark Resolved {i+1}"):
-                st.session_state.grievances[i]["resolved"] = True
-                st.session_state.forgiveness += 1
+                st.experimental_rerun()
+
+            if st.button(f"Mark Resolved {gid}"):
+                c.execute("UPDATE grievances SET status='Resolved' WHERE id=?", (gid,))
+                conn.commit()
                 st.balloons()
                 st.success("Grievance resolved ❤️")
+                st.experimental_rerun()
 
-        st.header("💖 Forgiveness Meter")
-        st.progress(min(st.session_state.forgiveness, 10)/10)
-        st.write(f"Forgiveness points: {st.session_state.forgiveness} ❤️")
+        st.write("---")
 
     # --------------------------
-    # LOGOUT BUTTON
+    # FORGIVENESS METER
     # --------------------------
-    if st.button("Logout 🚪"):
-        st.session_state.clear()
-        st.session_state.show_goodbye = True
-        st.rerun()
+    st.header("💖 Forgiveness Meter")
+    resolved_count = c.execute("SELECT COUNT(*) FROM grievances WHERE status='Resolved'").fetchone()[0]
+    st.progress(min(resolved_count, 10) / 10)
+    st.write(f"Forgiveness points: {resolved_count} ❤️")
+
+    # --------------------------
+    # LOVE NOTES
+    # --------------------------
+    st.header("💌 Love Notes (Not Grievances)")
+    note = st.text_input("Send a sweet note 🥰", key="note_input")
+    if st.button("Send Note"):
+        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+        c.execute("INSERT INTO love_notes (sender, text, timestamp) VALUES (?, ?, ?)",
+                  (username, note, now))
+        conn.commit()
+        st.success("Note sent 💖")
+        st.experimental_rerun()
+
+    notes = c.execute("SELECT sender, text, timestamp FROM love_notes ORDER BY id DESC").fetchall()
+    for n in notes:
+        sender, text, ts = n
+        bubble_class = "chat-bubble user-bubble" if sender == username else "chat-bubble"
+        st.markdown(f"<div class='chat-container'><div class='{bubble_class}'>**{sender} [{ts}]**<br>{text}</div></div>", unsafe_allow_html=True)
